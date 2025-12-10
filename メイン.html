@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福岡市社会科見学 ルートプランナー</title>
+    <style>
+        /* スタイルは前回と同じですが、チェックボックス用に微調整 */
+        body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; background-color: #f0f8ff; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #007bff; text-align: center; font-size: 24px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; transition: background 0.3s; }
+        button:hover { background-color: #218838; }
+        
+        /* チェックポイントのグループ化 */
+        .checkbox-group { border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f9f9f9; }
+        .checkbox-group label { font-weight: normal; display: inline-block; margin-right: 15px; cursor: pointer;}
+        
+        /* 結果表示のデザイン */
+        #output { margin-top: 20px; background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 5px; display: none; }
+        .route-path { font-size: 1.2em; color: #d9534f; font-weight: bold; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px dashed #ddd; }
+        .schedule-text { line-height: 1.6; }
+        .warning { color: orange; font-weight: bold; margin-top: 10px; }
+        
+        #map { height: 400px; width: 100%; margin-top: 20px; border-radius: 8px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚌 社会科見学 ルートメーカー</h1>
+    <p style="text-align:center;">10:00 天神発 〜 14:30 天神着</p>
+    
+    <div class="form-group">
+        <label>✅ 経由するチェックポイントを選んでください</label>
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="checkMuseum" value="福岡市博物館" checked> 福岡市博物館</label>
+            <label><input type="checkbox" id="checkArt" value="福岡市美術館" checked> 福岡市美術館</label>
+            <label><input type="checkbox" id="checkTower" value="福岡タワー" checked> 福岡タワー</label>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="lunchOption">🍱 お昼ご飯は？</label>
+        <select id="lunchOption">
+            <option value="お弁当（公園などで食べる）">お弁当（公園などで食べる）</option>
+            <option value="飲食店（お店で食べる）">飲食店（お店で食べる）</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="extraSpot">➕ 追加で行きたい場所 (あれば)</label>
+        <input type="text" id="extraSpot" placeholder="例: 福岡PayPayドーム、大濠公園など">
+    </div>
+
+    <button onclick="generateRoute()">
