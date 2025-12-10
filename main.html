@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福岡市社会科見学 ルートプランナー</title>
+    <style>
+        /* スタイルは前回と同じです */
+        body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; background-color: #f0f8ff; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #007bff; text-align: center; font-size: 24px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; transition: background 0.3s; }
+        button:hover { background-color: #218838; }
+        
+        /* 結果表示のデザイン */
+        #output { margin-top: 20px; background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 5px; display: none; }
+        .route-path { font-size: 1.2em; color: #d9534f; font-weight: bold; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px dashed #ddd; }
+        .schedule-text { line-height: 1.6; }
+        .warning { color: orange; font-weight: bold; margin-top: 10px; }
+        
+        #map { height: 400px; width: 100%; margin-top: 20px; border-radius: 8px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚌 社会科見学 ルートメーカー</h1>
+    <p style="text-align:center;">10:00 天神発 〜 14:30 天神着</p>
+
+    <div class="form-group">
+        <label for="lunchOption">🍱 お昼ご飯は？</label>
+        <select id="lunchOption">
+            <option value="お弁当（公園などで食べる）">お弁当（公園などで食べる）</option>
+            <option value="飲食店（お店で食べる）">飲食店（お店で食べる）</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="extraSpot">➕ 追加で行きたい場所 (あれば)</label>
+        <input type="text" id="extraSpot" placeholder="例: 福岡PayPayドーム、大濠公園など">
+    </div>
+
+    <button onclick="generateRoute()">ルートを生成する (時刻表参照)</button>
+    <div class="warning">
+        ※生成の際、Geminiが現在の時刻表をインターネットで検索して使用します。
+    </div>
+
+    <div id="output"></div>
+    <div id="map"></div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+
+<script type="module">
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+    // ↓↓↓ ここにGemini APIキーを入れてください ↓↓↓
+    const API_KEY = "AIzaSyAu845D92cgiECPDfzPD1VRN8c0NU1tAN8";
+    
+    window.generateRoute = async function() {
+        const lunch = document.getElementById('lunchOption').value;
+        const extra = document.getElementById('extraSpot').value;
+        const outputDiv = document.getElementById('output');
+        
+        // 読み込み中表示
+        outputDiv.style.display = 'block';
+        outputDiv.innerHTML = "⏳ Geminiが**時刻表を参照して**最適なルートを考えています...<br>（10〜20秒ほどお待ちください）";
+
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        // ★ ツールとしてWeb検索（Google Search Tool）を有効にします ★
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            config: {
+                tools: [{ googleSearch: {} }],
+            },
+        });
+
+        // ★ プロンプトに時刻表参照の指示を追加しました ★
+        const prompt = `
+            あなたは福岡市の修学旅行ガイドです。以下の中学生の社会科見学プランを作成してください。
+            **必ずWeb検索ツールを使用して福岡市地下鉄空港線の時刻表を参照し、実際の移動時間（乗車、乗り換え、待ち時間）を計算して、スケジュールに反映させてください。**
+
+            【条件】
+            - 開始: 10:00 天神
+            - 終了: 14:30 天神
+            - 必須チェックポイント: 福岡市博物館、福岡市美術館、福岡タワー
+            - 追加目的地: ${extra ? extra : "なし"}
+            - 昼食スタイル: ${lunch}
+            - 移動手段: 地下鉄空港線をメインに使用すること。（博物館・タワーの最寄りは西新駅、美術館の最寄は大濠公園駅とすること）
+            
+            【出力形式】
+            以下のJSON形式のみを返してください。マークダウン記法(backtick)は不要です。必ずJSONとして有効な形式にしてください。
+            {
+                "schedule": "スケジュールの詳細テキスト。**時刻は地下鉄の時刻表に基づいて**具体的に記述してください（例: 10:05 天神駅発 → 10:11 大濠公園駅着）。",
+                "coordinates": [
+                    {"lat": 33.590, "lng": 130.400, "name": "天神(スタート)"},
+                    {"lat": 33.xxx, "lng": 130.xxx, "name": "次の場所"},
+                    ... (回る順番に緯度経度をリスト化),
+                    {"lat": 33.590, "lng": 130.400, "name": "天神(ゴール)"}
+                ]
+            }
+        `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            
+            // JSONの整形
+            const jsonStr = text.replace(/```json|```/g, "").trim();
+            const data = JSON.parse(jsonStr);
+
+            // 座標データから場所の名前だけを取り出して「→」でつなぐ
+            const routeText = data.coordinates.map(loc => loc.name).join(" → ");
+
+            // 画面への表示
+            outputDiv.innerHTML = `
+                <h3>📍 ルート順路</h3>
+                <div class="route-path">${routeText}</div>
+                
+                <h3>📅 詳しいスケジュール (時刻表参照済み)</h3>
+                <div class="schedule-text">${data.schedule.replace(/\n/g, '<br>')}</div>
+            `;
+
+            // 地図の更新
+            updateMap(data.coordinates);
+
+        } catch (error) {
+            console.error(error);
+            outputDiv.innerHTML = `
+                <div style="color:red;">
+                    ❌ エラーが発生しました。<br>
+                    Geminiが時刻表の情報をうまく処理できなかった可能性があります。もう一度ボタンを押してみてください。<br>
+                    エラー内容: ${error.message}
+                </div>
+            `;
+        }
+    }
+</script>
+
+<script>
+    // Google Mapの初期設定と更新関数（変更なし）
+    let map;
+    function initMap() {
+        const fukuoka = { lat: 33.589, lng: 130.402 };
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 12,
+            center: fukuoka,
+        });
+    }
+
+    function updateMap(locations) {
+        if (!locations || locations.length === 0) return;
+
+        const center = locations[0];
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 13,
+            center: { lat: center.lat, lng: center.lng },
+        });
+
+        const pathCoordinates = [];
+
+        locations.forEach((loc, index) => {
+            new google.maps.Marker({
+                position: { lat: loc.lat, lng: loc.lng },
+                map: map,
+                label: (index + 1).toString(),
+                title: loc.name
+            });
+            pathCoordinates.push({ lat: loc.lat, lng: loc.lng });
+        });
+
+        const tripPath = new google.maps.Polyline({
+            path: pathCoordinates,
+            geodesic: true,
+            strokeColor: "#FF0000",
+            strokeOpacity: 0.8,
+            strokeWeight: 4,
+        });
+
+        tripPath.setMap(map);
+    }
+</script>
+
+</body>
+</html>
